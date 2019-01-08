@@ -1,8 +1,10 @@
 #include <hal/log.h>
 
 #include "air/air_radio.h"
+#include "air/air_rf_power.h"
 
 #include "config/config.h"
+#include "config/settings.h"
 
 #include "output_air.h"
 
@@ -17,6 +19,8 @@ static time_micros_t cycle_end;
 #endif
 
 #define MODE_SWITCH_WAIT_INTERVAL_US MILLIS_TO_MICROS(1000)
+
+static time_millis_t snr_threshold_start = -1;
 
 typedef enum
 {
@@ -418,6 +422,27 @@ static void output_air_recv_packet(output_air_t *output_air, rc_data_t *data, ti
             for (int ii = 0; ii < ARRAY_COUNT(data->telemetry_uplink); ii++)
             {
                 data_state_update_ack_received(&data->telemetry_uplink[ii].data_state, in_pkt.tx_seq);
+            }
+
+            if (settings_get_key_u8(SETTING_KEY_TX_RF_POWER) == AIR_RF_POWER_AUTO) {
+                float snr_scaled = snr / TELEMETRY_SNR_MULTIPLIER;
+                //ESP_LOGI(TAG, "Scaled SNR is: %f", snr_scaled);
+                if ((snr_scaled < AUTO_POWER_SNR_UPSCALE) || (snr_scaled > AUTO_POWER_SNR_DOWNSCALE)) {
+                    if (snr_threshold_start == -1) {
+                        snr_threshold_start = time_millis_now();
+                    } else if (time_millis_now() > (snr_threshold_start + AUTO_POWER_SNR_DELAY_MILLIS)) {
+                        if (snr_scaled < AUTO_POWER_SNR_UPSCALE) {
+                            ESP_LOGI(TAG, "SNR too low after inhibition delay, should upscale tx pwr from %d", output_air->tx_power);
+                        } else if (snr_scaled > AUTO_POWER_SNR_DOWNSCALE) {
+                            ESP_LOGI(TAG, "SNR too high, should downscale tx pwr");
+                        }
+                    }
+                } else {
+                    if (snr_threshold_start != -1) {
+                        ESP_LOGI(TAG, "Resetting SNR threshold");
+                        snr_threshold_start = -1;
+                    }
+                }
             }
         }
         else

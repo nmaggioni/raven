@@ -12,6 +12,10 @@
 
 #define CONFIG_MAX_PAIRED_RX 32 // Max RX paired to a TX
 
+#define AUTO_POWER_SNR_UPSCALE 7.0f
+#define AUTO_POWER_SNR_DOWNSCALE 7.5f
+#define AUTO_POWER_SNR_DELAY_MILLIS 3000
+
 typedef struct air_pairing_s air_pairing_t;
 typedef struct air_addr_s air_addr_t;
 
